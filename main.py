@@ -19,16 +19,24 @@ from headroom.integrations.langchain import HeadroomChatModel
 MODEL = os.getenv("OPENAI_MODEL_NAME", "gpt-5.4-mini")
 
 class fibsum_state(TypedDict):
-    n: int
-    fact: list[int]
-    sum: int
+    target_n: int
+    curr_n: int
+    fact: dict[int, int]
 
-def fib(n: int) -> int:
+def fib_node(state: fibsum_state) -> int:
+    # put into variables for readability
+    n = state["curr_n"]
+    fact = state["fact"]
+
     if n <= 1:
-        return n
-    return fib(n-1) + fib(n-2)
+        return fact[n]
+    if fact[n - 1] and fact[n - 2]:
+        return fact[n - 1] + fact[n - 2]
+    else:
+        return "Go down"
 
-# 3 -> fib(2)+fib(1) -> 1+1 = 2
+def router(state: fibsum_state) -> int:
+    return
 
 workflow = StateGraph(fibsum_state)
 
