@@ -23,38 +23,91 @@ class fibsum_state(TypedDict):
     curr_n: int
     fact: dict[int, int]
 
-def fib_node(state: fibsum_state) -> int:
-    # put into variables for readability
-    n = state["curr_n"]
-    fact = state["fact"]
-
+def fib(n: int, fact: dict[int, int]) -> int:
     if n <= 1:
         return fact[n]
-    if fact[n - 1] and fact[n - 2]:
-        return fact[n - 1] + fact[n - 2]
+    if fact[n - 1] != -1 and fact[n - 2] != -1:
+        fact[n] = fact[n - 1] + fact[n - 2]
     else:
-        return "Go down"
+        fact[n] = -1
+    return fact[n]
 
-def router(state: fibsum_state) -> int:
-    return
+def calc_node(state: fibsum_state):
+    curr = state["curr_n"]
+    fact = state["fact"]
+    fib(curr, fact)
+    return {"fact": fact}
+
+def up_node(state: fibsum_state):
+    return {"curr_n": state["curr_n"] + 1}
+
+def down_node(state: fibsum_state):
+    return {"curr_n": state["curr_n"] - 1}
+
+def router(state: fibsum_state) -> str:
+    n = state["target_n"]
+    curr = state["curr_n"]
+    result = state["fact"][curr]
+
+    if result == -1:
+        return "Down"
+    if curr < n:
+        return "Up"
+    return "Done"
 
 workflow = StateGraph(fibsum_state)
+
+workflow.add_node("calc", calc_node)
+workflow.add_node("up", up_node)
+workflow.add_node("down", down_node)
+
+workflow.add_edge(START, "calc")
+workflow.add_conditional_edges("calc", router, {"Up": "up", "Down": "down", "Done": END})
+workflow.add_edge("up", "calc")
+workflow.add_edge("down", "calc")
+
+fib_app = workflow.compile()
+
+
+def build_fact_dict(n: int) -> dict[int, int]:
+    fact = {i: -1 for i in range(n + 1)}
+    fact[0] = 0
+    if n >= 1:
+        fact[1] = 1
+    return fact
+
+
+@tool
+def compute_fibonacci(target_n: int) -> str:
+    """Compute the nth Fibonacci number (0-indexed: fib(0)=0, fib(1)=1)."""
+    if target_n < 0:
+        return "Error: target_n must be non-negative"
+
+    final_state = fib_app.invoke({
+        "target_n": target_n,
+        "curr_n": target_n,
+        "fact": build_fact_dict(target_n),
+    })
+    result = final_state["fact"][target_n]
+    return f"fib({target_n}) = {result}"
 
 
 def main():
     base_model = init_chat_model(
         model=MODEL,
-        temperature=0.6,
+        temperature=0.2,
     )
     model = HeadroomChatModel(
         wrapped_model=base_model,
     )
     agent = create_agent(
         model=model,
-        tools=[],
+        tools=[compute_fibonacci],
     )
 
-    response = agent.invoke({"messages": [HumanMessage(content="Hello, how are you?")]})
+    response = agent.invoke({
+        "messages": [HumanMessage(content="What is the 10th Fibonacci number?")],
+    })
     print(response["messages"][-1].content)
     print(model.get_savings_summary())
 
